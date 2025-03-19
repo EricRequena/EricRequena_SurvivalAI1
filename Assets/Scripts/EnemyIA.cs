@@ -1,30 +1,99 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
 public class EnemyAI : MonoBehaviour
 {
+    private NavMeshAgent agent;
     public Transform [] patrolPoints;
     private int currentPoint = 0;
-    private NavMeshAgent agent;
+    public Transform player;
 
-    // Start is called before the first frame update
-    void Start()
+    public float maxHealth = 100f;
+    public float currentHealth;
+    public float detectionRange = 10f; // Rango de detección
+    public float lostRange = 15f; // Si el jugador sale de esta distancia, vuelve a patrullar
+    public float fleeDistance = 10f; // Distancia que huirá
+
+    private enum State
     {
-        agent = GetComponent<NavMeshAgent> ();
-        agent.destination = patrolPoints [currentPoint].position;
+        Patrolling,
+        Chasing,
+        Fleeing
     }
 
-    // Update is called once per frame
-    void Update()
+    private State currentState;
+
+    void Start ()
     {
-        if (agent.isOnNavMesh && !agent.pathPending && agent.remainingDistance < 0.5f)
+        agent = GetComponent<NavMeshAgent> ();
+        currentHealth = maxHealth;
+        ChangeState (State.Patrolling);
+    }
+
+    void Update ()
+    {
+        float distanceToPlayer = Vector3.Distance (transform.position, player.position);
+
+        if (currentHealth > maxHealth * 0.5f && distanceToPlayer <= detectionRange)
+        {
+            ChangeState (State.Chasing);
+        }
+        else if (currentHealth <= maxHealth * 0.5f)
+        {
+            ChangeState (State.Fleeing);
+        }
+        else if (distanceToPlayer > lostRange)
+        {
+            ChangeState (State.Patrolling);
+        }
+
+        switch (currentState)
+        {
+            case State.Patrolling: Patrol (); break;
+            case State.Chasing: ChasePlayer (); break;
+            case State.Fleeing: FleeFromPlayer (); break;
+        }
+    }
+
+    void ChangeState (State newState)
+    {
+        if (currentState != newState)
+        {
+            currentState = newState;
+        }
+    }
+
+    void Patrol ()
+    {
+        if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
             currentPoint = (currentPoint + 1) % patrolPoints.Length;
             agent.destination = patrolPoints [currentPoint].position;
         }
+    }
 
+    void ChasePlayer ()
+    {
+        if (player != null)
+        {
+            agent.destination = player.position;
+        }
+    }
 
+    void FleeFromPlayer ()
+    {
+        if (player != null)
+        {
+            // Dirección opuesta al jugador
+            Vector3 fleeDirection = (transform.position - player.position).normalized;
+            Vector3 fleeTarget = transform.position + fleeDirection * fleeDistance;
+
+            agent.destination = fleeTarget;
+        }
+    }
+
+    public void TakeDamage (float damage)
+    {
+        currentHealth -= damage;
     }
 }
